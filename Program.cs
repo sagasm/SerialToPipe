@@ -12,6 +12,7 @@ class Program
 {
     private const long k_ticks_per_us = 10;     // Tick is 100ns
     private const int k_header_size = 8;
+    private static bool bPipeOpend = false;
 
     private static NamedPipeServerStream _pipe;
     private static BinaryWriter _writer;
@@ -41,27 +42,6 @@ class Program
             return;
         }
 
-        // create pipe
-        try
-        {
-            _pipe = new NamedPipeServerStream("wireshark", PipeDirection.Out);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine();
-            Console.WriteLine("Error creating pipe : " + ex.Message);
-            return;
-        }
-
-        // wait for wireshark to connect to pipe
-        Console.WriteLine("Waiting for connection to wireshark");
-        Console.Write(@"Open wireshark and connect to interface: \\.\pipe\wireshark");
-        _pipe.WaitForConnection();
-        Console.WriteLine("Wireshark is connected");
-
-        // connect binary writer to pipe to write binary data into it
-        _writer = new BinaryWriter(_pipe);
-
         // Create serial parsers
         if (ar["p1"] != null)
         {
@@ -84,13 +64,7 @@ class Program
                 match = HexStringToList(ar["p1m"]);
             }
 
-            SerialParser sp = new SerialParser(match, timeout_us, _fifo);            
-            if (!sp.Open(ar["p1"], baudrate))
-            {
-                _writer.Close();
-                _pipe.Close();
-                return;
-            }
+            SerialParser sp = new SerialParser(match, ar["p1"], baudrate, timeout_us, _fifo);            
             _ser_par.Add(sp);
         }
 
@@ -115,24 +89,9 @@ class Program
                 match = HexStringToList(ar["p2m"]);
             }
 
-            SerialParser sp = new SerialParser(match, timeout_us, _fifo);
-            if (!sp.Open(ar["p2"], baudrate))
-            {
-                _writer.Close();
-                _pipe.Close();
-                return;
-            }
+            SerialParser sp = new SerialParser(match, ar["p2"], baudrate, timeout_us, _fifo);
             _ser_par.Add(sp);
         }
-
-        // Write global header
-        WriteToPipe(BitConverter.GetBytes((UInt32)0xa1b2c3d4)); // Magic number
-        WriteToPipe(BitConverter.GetBytes((UInt16)2));  // Major version
-        WriteToPipe(BitConverter.GetBytes((UInt16)4));  // Minor version
-        WriteToPipe(BitConverter.GetBytes((Int32)0));   // Timezone 0 - UTC
-        WriteToPipe(BitConverter.GetBytes((UInt32)0));  // Timestamp accuracy - unused
-        WriteToPipe(BitConverter.GetBytes((UInt32)65535));  // Maximum lenght of captured packets 
-        WriteToPipe(BitConverter.GetBytes((UInt32)147));    // Data Link Type (DLT) - reserved
 
         // Run till ESC
         Console.WriteLine("Press ESC to exit");
@@ -140,6 +99,43 @@ class Program
         {
             while (!Console.KeyAvailable)
             {
+                if (bPipeOpend == false)
+                {
+                    // create pipe
+                    try
+                    {
+                        _pipe = new NamedPipeServerStream("wireshark", PipeDirection.Out);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine();
+                        Console.WriteLine("Error creating pipe : " + ex.Message);
+                        return;
+                    }
+
+                    // wait for wireshark to connect to pipe
+                    Console.WriteLine("Waiting for connection to wireshark");
+                    Console.Write(@"Open wireshark and connect to interface: \\.\pipe\wireshark");
+                    _pipe.WaitForConnection();
+                    bPipeOpend = true;
+                    Console.WriteLine("Wireshark is connected");
+
+                    // connect binary writer to pipe to write binary data into it
+                    _writer = new BinaryWriter(_pipe);
+
+                    // Write global header
+                    WriteToPipe(BitConverter.GetBytes((UInt32)0xa1b2c3d4)); // Magic number
+                    WriteToPipe(BitConverter.GetBytes((UInt16)2));  // Major version
+                    WriteToPipe(BitConverter.GetBytes((UInt16)4));  // Minor version
+                    WriteToPipe(BitConverter.GetBytes((Int32)0));   // Timezone 0 - UTC
+                    WriteToPipe(BitConverter.GetBytes((UInt32)0));  // Timestamp accuracy - unused
+                    WriteToPipe(BitConverter.GetBytes((UInt32)65535));  // Maximum lenght of captured packets 
+                    WriteToPipe(BitConverter.GetBytes((UInt32)147));    // Data Link Type (DLT) - reserved
+                    foreach (SerialParser sp in _ser_par)
+                    {
+                        sp.Open();
+                    }
+                }
                 if (_fifo.Count > 0)
                 {
                     Buffer bf = _fifo.Dequeue();
@@ -225,6 +221,7 @@ class Program
     private static void WriteToPipe(byte[] b)
     {
         // Send to pipe
+        if (bPipeOpend == false) return;
         try
         {
             for (int i = 0; i < b.Length; i++)
@@ -241,7 +238,8 @@ class Program
                 sp.Close();
             }
             _writer.Close();
-            _pipe.Close();
+            _pipe.Close();     
+            bPipeOpend = false;
         }
     }
 

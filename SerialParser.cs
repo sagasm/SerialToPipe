@@ -15,8 +15,10 @@ public class SerialParser
     private List<byte> _buff;
     private DateTime _last_activity_dt;
     private long _timeout_us;
+    private int _baudrate;
     private Queue<Buffer> _fifo;
     private int _port;
+    private string _strComPort;
 
 
     /// <summary>
@@ -25,7 +27,7 @@ public class SerialParser
     /// <param name="match"></param>
     /// <param name="timeout_us"></param>
     /// <param name="fifo"></param>
-    public SerialParser (List<byte> match, long timeout_us, Queue<Buffer> fifo)
+    public SerialParser (List<byte> match, String port, int baudrate, long timeout_us, Queue<Buffer> fifo)
     {
         // Assign private vars
         if (match == null)
@@ -39,6 +41,8 @@ public class SerialParser
         _timeout_us = timeout_us;
         _fifo = fifo;
         _buff = new List<byte>();
+        _baudrate = baudrate;
+        _strComPort = port;
     }
 
 
@@ -48,13 +52,13 @@ public class SerialParser
     /// <param name="port"></param>
     /// <param name="baudrate"></param>
     /// <returns></returns>
-    public bool Open(String port, int baudrate)
+    public bool Open( )
     {
         // Open serial port
-        Console.Write("Opening Serial Port " + port + " ..");
+        Console.Write("Opening Serial Port " + _strComPort + " ..");
         try
         {
-            _sp = new SerialPort(port, baudrate, Parity.None, 8, StopBits.One);
+            _sp = new SerialPort(_strComPort, _baudrate , Parity.None, 8, StopBits.One);
             _sp.Parity = Parity.None;
             _sp.StopBits = StopBits.One;
             _sp.DataBits = 8;
@@ -70,7 +74,7 @@ public class SerialParser
         catch (Exception ex)
         {
             Console.WriteLine();
-            Console.WriteLine("Exception opening serial port " + port + " : " + ex.Message);
+            Console.WriteLine("Exception opening serial port " + _strComPort + " : " + ex.Message);
             return false;
         }
         Console.WriteLine(". Ok");

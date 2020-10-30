@@ -11,7 +11,7 @@ using System.Net;
 class Program
 {
     private const long k_ticks_per_us = 10;     // Tick is 100ns
-    private const int k_header_size = 8;
+    private const int k_header_size = 16;
     private static bool bPipeOpend = false;
 
     private static NamedPipeServerStream _pipe;
@@ -201,18 +201,24 @@ class Program
         // Source port
         Int16 src_port = IPAddress.HostToNetworkOrder((Int16)bf.PortNumber);
         WriteToPipe(BitConverter.GetBytes(src_port));
+        src_port = 0;
+        WriteToPipe(BitConverter.GetBytes(src_port));
+        WriteToPipe(BitConverter.GetBytes(src_port));
+        WriteToPipe(BitConverter.GetBytes(src_port));
+        WriteToPipe(BitConverter.GetBytes(src_port));
+        WriteToPipe(BitConverter.GetBytes(src_port));
 
+        UInt16 protoType = 0x8;
+        WriteToPipe(BitConverter.GetBytes(protoType));
         // Destination port
-        Int16 dst_port = IPAddress.HostToNetworkOrder((Int16)bf.PortNumber);
-        WriteToPipe(BitConverter.GetBytes(dst_port));
 
         // Lenght 
         Int16 len = IPAddress.HostToNetworkOrder((Int16)incl_len);
         WriteToPipe(BitConverter.GetBytes(len));
 
         // Checksum (should be optional)
-        Int16 crc = IPAddress.HostToNetworkOrder((Int16)0);
-        WriteToPipe(BitConverter.GetBytes(crc));
+     //   Int16 crc = IPAddress.HostToNetworkOrder((Int16)0);
+     //   WriteToPipe(BitConverter.GetBytes(crc));
 
         // Send actual packet to pipe
         WriteToPipe(bf.byte_buff.ToArray());
